@@ -1,7 +1,7 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import readFileFromS3 from '../s3.js';
-import stationDelta from './stationDelta.js';
+import { lineNumberDelta, stationDelta } from './stationDelta.js';
 
 const sampleArrivalInfo = {
     id: 1234,
@@ -40,41 +40,61 @@ const getArrivalInfo = async (stationName, time) => {
             apiResults.push(
                 ...realtimeArrivalList.map(arrival => {
                     const [hh, mm] = time.split(':');
-                    const arriveTimeMins = Math.floor(parseInt(arrival.barvlDt) / 60);
+                    const arriveTimeMins = Math.floor(
+                        parseInt(arrival.barvlDt) / 60
+                    );
 
-                    const lineNumber = parseInt(arrival.subwayId.slice(-1));
+                    const lineNumber = lineNumberDelta[arrival.subwayId];
+                    if (lineNumber) {
+                        // 이전, 다음 역명 구하기
+                        const prevStation = stations.find(station => {
+                            const stationNum =
+                                parseInt(station.id) + stationDelta[lineNumber];
+                            return (
+                                stationNum.toString() ===
+                                arrival.statnFid.slice(-3)
+                            );
+                        });
 
-                    // 이전, 다음 역명 구하기
-                    const prevStation = stations.find(station => {
-                        const stationNum = parseInt(station.id) + stationDelta[lineNumber];
-                        return stationNum.toString() === arrival.statnFid.slice(-3);
-                    });
+                        const nextStation = stations.find(station => {
+                            const stationNum =
+                                parseInt(station.id) + stationDelta[lineNumber];
+                            return (
+                                stationNum.toString() ===
+                                arrival.statnTid.slice(-3)
+                            );
+                        });
 
-                    const nextStation = stations.find(station => {
-                        const stationNum = parseInt(station.id) + stationDelta[lineNumber];
-                        return stationNum.toString() === arrival.statnTid.slice(-3);
-                    });
+                        // 시간 구하기
+                        let newHour = parseInt(hh);
+                        let newMinute = parseInt(mm) + arriveTimeMins;
+                        if (newMinute >= 60) {
+                            newMinute -= 60;
+                            newHour += 1;
+                        }
+                        newHour = newHour % 24;
 
-                    // 시간 구하기
-                    let newHour = parseInt(hh);
-                    let newMinute = parseInt(mm) + arriveTimeMins;
-                    if (newMinute >= 60) {
-                        newMinute -= 60;
-                        newHour += 1;
+                        return {
+                            name: arrival.statnNm,
+                            lineNumber,
+                            direction:
+                                arrival.updnLine === '상행' ||
+                                    arrival.updnLine === '내선'
+                                    ? '1'
+                                    : '2',
+                            prevStation: prevStation
+                                ? prevStation.name
+                                : '이전역 없음',
+                            nextStation: nextStation
+                                ? nextStation.name
+                                : '다음역 없음',
+                            arriveTime: `${newHour.toLocaleString('en-US', {
+                                minimumIntegerDigits: 2,
+                            })}:${newMinute.toLocaleString('en-US', {
+                                minimumIntegerDigits: 2,
+                            })}`,
+                        };
                     }
-                    newHour = newHour % 24;
-
-                    return {
-                        name: arrival.statnNm,
-                        lineNumber,
-                        direction:
-                            arrival.updnLine === '상행' || arrival.updnLine === '내선'
-                                ? '1'
-                                : '2',
-                        prevStation: prevStation.name,
-                        nextStation: nextStation.name,
-                        arriveTime: `${newHour}:${newMinute}`,
-                    };
                 })
             );
 
@@ -91,7 +111,11 @@ const getArrivalInfo = async (stationName, time) => {
         }
     }
 
-    return apiResults;
+    const result = new Set(
+        apiResults.filter(result => result).map(JSON.stringify)
+    );
+
+    return Array.from(result).map(JSON.parse);
 };
 
 export default getArrivalInfo;

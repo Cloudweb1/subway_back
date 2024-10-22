@@ -1,6 +1,6 @@
 // 공공데이터 상의 지하철 역 번호와 실제 지하철 역 번호가 달라서 해당 차이를 기록함_개고생함 ㄹㅇ
 
-const stationDelta = {
+export const stationDelta = {
     1: 0,
     2: 0,
     3: 10,
@@ -11,4 +11,14 @@ const stationDelta = {
     8: -1,
 };
 
-export default stationDelta;
+// 경의중앙선, 수인분당선, 공항철도 등의 데이터를 무시하기 위함
+export const lineNumberDelta = {
+    1001: 1,
+    1002: 2,
+    1003: 3,
+    1004: 4,
+    1005: 5,
+    1006: 6,
+    1007: 7,
+    1008: 8,
+};
